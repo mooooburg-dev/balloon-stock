@@ -15,7 +15,7 @@ interface Site {
 
 export default function Home() {
   const [sites, setSites] = useState<Record<string, Site>>({});
-  const [selectedSite, setSelectedSite] = useState<string>('joyparty');
+  const [selectedSite, setSelectedSite] = useState<string>('saeroevent');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [crawlingMode, setCrawlingMode] = useState<'all' | 'category'>('all');
@@ -308,7 +308,8 @@ export default function Home() {
         <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <p className="text-sm text-yellow-700 dark:text-yellow-400">
             <strong>새로운 기능:</strong>
-            {selectedSite === 'joyparty' ? 'Joy Party' : '조이파티B2B'}{' '}
+            {selectedSite === 'saeroevent' ? '새로이벤트' : 
+             selectedSite === 'joypartyb2b' ? '조이파티B2B' : 'Joy Party'}{' '}
             사이트에서 카테고리별로 나누어진 엑셀 파일을 다운로드할 수 있습니다.
             각 카테고리는 별도의 탭으로 구성되며, 요약 탭도 포함됩니다.
           </p>

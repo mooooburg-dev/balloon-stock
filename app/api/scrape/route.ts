@@ -64,7 +64,9 @@ export async function POST(request: Request) {
 
     // 파일명에 타임스탬프와 사이트/카테고리 정보 포함 (영문으로)
     const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-    const siteNameEn = siteId === 'joypartyb2b' ? 'JoyPartyB2B' : 'JoyParty';
+    const siteNameEn = 
+      siteId === 'saeroevent' ? 'SaeroEvent' :
+      siteId === 'joypartyb2b' ? 'JoyPartyB2B' : 'JoyParty';
     const categoryInfo =
       mode === 'category' && categories
         ? `_${categories.length}categories`
