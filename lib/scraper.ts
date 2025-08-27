@@ -1,5 +1,9 @@
 import puppeteer from 'puppeteer';
 import * as XLSX from 'xlsx';
+import { config } from 'dotenv';
+
+// 환경 변수 로드
+config({ path: '.env.local' });
 
 export interface BalloonProduct {
   name: string;
@@ -35,25 +39,73 @@ export interface SiteConfig {
 
 // 사이트 설정 매핑
 export const SITES: Record<string, SiteConfig> = {
-  joyparty: {
-    id: 'joyparty',
-    name: '조이파티 일반',
-    baseUrl: 'https://www.joyparty.co.kr',
+  saeroevent: {
+    id: 'saeroevent',
+    name: '새로이벤트',
+    baseUrl: 'https://www.saeroeventb2b.co.kr:10497',
     categories: [
-      { code: '048001', name: '고무풍선' },
-      { code: '048002', name: '은박풍선' },
-      { code: '048009', name: '풍선꽃다발/케이크' },
-      { code: '048007', name: '은박풍선세트' },
-      { code: '048006', name: '천장풍선세트' },
-      { code: '048008', name: '벌룬가랜드' },
-      { code: '048004', name: '풍선만들기' },
+      // 고무풍선 카테고리 - 실제 데이터 기반
+      { code: '01010000', name: '원형풍선', parentCategory: '고무풍선' },
+      { code: '01030000', name: '꼬리풍선', parentCategory: '고무풍선' },
+      { code: '01040000', name: '요술풍선', parentCategory: '고무풍선' },
+      { code: '01050000', name: '대형풍선', parentCategory: '고무풍선' },
+      { code: '01060000', name: '인쇄된풍선', parentCategory: '고무풍선' },
+      { code: '01110000', name: '모양풍선', parentCategory: '고무풍선' },
+      { code: '01120000', name: '버블,기타', parentCategory: '고무풍선' },
+      // 은박풍선 카테고리 - 실제 데이터 기반
+      {
+        code: '02010000',
+        name: '버블.별.하트.원형.오브.사각.다이아',
+        parentCategory: '은박풍선',
+      },
+      { code: '02020000', name: '커브.달.야자수', parentCategory: '은박풍선' },
+      { code: '02030000', name: '숫자호일', parentCategory: '은박풍선' },
+      { code: '02040000', name: '알파벳호일', parentCategory: '은박풍선' },
+      { code: '02050000', name: '캐릭터라이선스', parentCategory: '은박풍선' },
+      {
+        code: '02060000',
+        name: '생일.음표.식물.십자가',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02070000',
+        name: '스마일,사랑,스포츠',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02080000',
+        name: '첫돌.베이비.탈것,우주',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02090000',
+        name: '웨딩.기념일.땡큐.땡땡이',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02100000',
+        name: '축하.입학.졸업.쾌유',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02110000',
+        name: '동물.음식.곤충,자연',
+        parentCategory: '은박풍선',
+      },
+      {
+        code: '02130000',
+        name: '산보.에어워커,멀티,에어룬즈',
+        parentCategory: '은박풍선',
+      },
+      { code: '02140000', name: '시즌호일', parentCategory: '은박풍선' },
+      { code: '02210000', name: '바람개비풍선', parentCategory: '은박풍선' },
     ],
     selectors: {
-      productLinks: 'a[href*="goods_view.php"]',
-      productName: '',
-      productPrice: '',
+      productLinks: 'a[href*="m_goods_detail.php"]',
+      productName: 'img',
+      productPrice: '.price, .goods_price',
       productImage: 'img',
-      productContainer: 'li, div',
+      productContainer: 'a[href*="m_goods_detail.php"]',
     },
   },
   joypartyb2b: {
@@ -105,19 +157,92 @@ export const SITES: Record<string, SiteConfig> = {
       productContainer: '.item-list, .item-wrap, .item-row',
     },
   },
+  joyparty: {
+    id: 'joyparty',
+    name: '조이파티 일반',
+    baseUrl: 'https://www.joyparty.co.kr',
+    categories: [
+      { code: '048001', name: '고무풍선' },
+      { code: '048002', name: '은박풍선' },
+      { code: '048009', name: '풍선꽃다발/케이크' },
+      { code: '048007', name: '은박풍선세트' },
+      { code: '048006', name: '천장풍선세트' },
+      { code: '048008', name: '벌룬가랜드' },
+      { code: '048004', name: '풍선만들기' },
+    ],
+    selectors: {
+      productLinks: 'a[href*="goods_view.php"]',
+      productName: '',
+      productPrice: '',
+      productImage: 'img',
+      productContainer: 'li, div',
+    },
+  },
 };
 
 // 기존 CATEGORIES는 joyparty 사이트용으로 유지 (하위호환성)
 export const CATEGORIES: CategoryInfo[] = SITES.joyparty.categories;
 
 export async function getMaxPagesForCategory(
-  page: import('puppeteer').Page,
+  page: puppeteer.Page,
   categoryCode: string,
   siteId: string = 'joyparty'
 ): Promise<number> {
   const site = SITES[siteId];
 
-  if (siteId === 'joypartyb2b') {
+  if (siteId === 'saeroevent') {
+    // 새로이벤트 사이트 페이지네이션 확인 - 오타 수정
+    const testUrl = `${site.baseUrl}/m_goods_list.php?ps_line=20&categoryid=${categoryCode}&ps_page=1`;
+
+    try {
+      await page.goto(testUrl, {
+        waitUntil: 'networkidle2',
+        timeout: 10000,
+      });
+
+      // 페이지네이션에서 최대 페이지 수 파싱
+      const maxPage = await page.evaluate(() => {
+        let maxPageNum = 1;
+
+        // 페이지 링크들 확인
+        const pageLinks = document.querySelectorAll('a[href*="ps_page="]');
+        pageLinks.forEach((link) => {
+          const href = link.getAttribute('href') || '';
+          const pageMatch = href.match(/ps_page=(\d+)/);
+          if (pageMatch) {
+            const pageNum = parseInt(pageMatch[1]);
+            if (pageNum > maxPageNum) {
+              maxPageNum = pageNum;
+            }
+          }
+        });
+
+        // 총 상품 수로 추정
+        const totalText = document.body.textContent || '';
+        const totalMatch = totalText.match(/총\s*(\d+)\s*개/);
+        if (totalMatch) {
+          const totalProducts = parseInt(totalMatch[1]);
+          const estimatedPages = Math.ceil(totalProducts / 20); // 페이지당 20개
+          if (estimatedPages > maxPageNum) {
+            maxPageNum = Math.min(estimatedPages, 10); // 최대 10페이지로 제한
+          }
+        }
+
+        return Math.max(1, Math.min(maxPageNum, 5)); // 보수적으로 최대 5페이지
+      });
+
+      console.log(
+        `${site.name} 카테고리 ${categoryCode} 최대 페이지: ${maxPage}`
+      );
+      return maxPage;
+    } catch (error) {
+      console.error(
+        `${site.name} 카테고리 ${categoryCode} 페이지 수 확인 중 오류:`,
+        error
+      );
+      return 1;
+    }
+  } else if (siteId === 'joypartyb2b') {
     // B2B 사이트는 첫 페이지에서 페이지네이션 HTML 파싱으로 빠르게 확인
     const testUrl = `${site.baseUrl}/shop/list.php?ca_id=${categoryCode}&page=1`;
 
@@ -231,7 +356,7 @@ export async function getMaxPagesForCategory(
 }
 
 export async function scrapeSinglePage(
-  page: import('puppeteer').Page,
+  page: puppeteer.Page,
   pageNum: number,
   categoryCode: string,
   siteId: string = 'joyparty'
@@ -242,7 +367,9 @@ export async function scrapeSinglePage(
     categoryCode;
 
   let url: string;
-  if (siteId === 'joypartyb2b') {
+  if (siteId === 'saeroevent') {
+    url = `${site.baseUrl}/m_goods_list.php?ps_line=20&categoryid=${categoryCode}&ps_page=${pageNum}`;
+  } else if (siteId === 'joypartyb2b') {
     url = `${site.baseUrl}/shop/list.php?ca_id=${categoryCode}&page=${pageNum}`;
   } else {
     url = `${site.baseUrl}/goods/goods_list.php?page=${pageNum}&cateCd=${categoryCode}`;
@@ -261,12 +388,23 @@ export async function scrapeSinglePage(
   // 추가 대기 시간 (B2B 사이트의 동적 컨텐츠 로딩을 위해)
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  // 상품 링크가 있는지 확인 - 타임아웃 연장
+  // 상품 링크가 있는지 확인 - 새로이벤트의 경우 더 긴 대기 시간
+  const waitTimeout = siteId === 'saeroevent' ? 10000 : 5000;
   try {
-    await page.waitForSelector(site.selectors.productLinks, { timeout: 5000 });
+    await page.waitForSelector(site.selectors.productLinks, { timeout: waitTimeout });
   } catch {
     // 페이지 내용 디버깅을 위해 HTML 일부 확인
     const pageContent = await page.content();
+    const currentUrl = page.url();
+    
+    console.log(`${site.name} 현재 URL: ${currentUrl}`);
+    
+    // 새로이벤트의 경우 로그인 상태 확인
+    if (siteId === 'saeroevent' && currentUrl.includes('login.php')) {
+      console.log('새로이벤트 로그인 상태가 만료되었습니다.');
+      return [];
+    }
+    
     if (
       pageContent.includes('상품이 없습니다') ||
       pageContent.includes('등록된 상품이 없습니다')
@@ -278,6 +416,18 @@ export async function scrapeSinglePage(
       console.log(
         `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 상품 링크를 찾을 수 없습니다.`
       );
+      
+      // 새로이벤트의 경우 추가 디버깅 정보
+      if (siteId === 'saeroevent') {
+        const linkCount = await page.evaluate(() => {
+          return {
+            allLinks: document.querySelectorAll('a').length,
+            productLinks: document.querySelectorAll('a[href*="m_goods_detail.php"]').length,
+            images: document.querySelectorAll('img').length
+          };
+        });
+        console.log(`디버깅 정보 - 전체 링크: ${linkCount.allLinks}, 상품 링크: ${linkCount.productLinks}, 이미지: ${linkCount.images}`);
+      }
     }
     return [];
   }
@@ -307,9 +457,22 @@ export async function scrapeSinglePage(
         // 상품명 추출
         let productName = '';
 
-        if (siteConfig.id === 'joypartyb2b') {
+        if (siteConfig.id === 'saeroevent') {
+          // 새로이벤트 사이트용 - 이미지 alt 속성에서 상품명 추출
+          const img = container.querySelector('img');
+          if (img) {
+            productName = img.getAttribute('alt')?.trim() || '';
+          }
+          
+          // alt가 없으면 링크의 title 속성이나 텍스트 확인
+          if (!productName) {
+            productName = link.getAttribute('title') || link.textContent?.trim() || '';
+          }
+        } else if (siteConfig.id === 'joypartyb2b') {
           // B2B 사이트용 상품명 추출 - title 속성이나 전체 텍스트 우선
-          const nameElement = container.querySelector('.item-name');
+          const nameElement =
+            container.querySelector(siteConfig.selectors.productName) ||
+            container.querySelector('.item-name');
           if (nameElement) {
             // title 속성에서 전체 이름 추출 (CSS로 짤리기 전의 원본)
             productName =
@@ -348,6 +511,12 @@ export async function scrapeSinglePage(
         // "DC"가 포함된 상품명은 제외
         if (productName.includes('DC')) return;
 
+        // 수량 정보가 포함된 중복 상품명 제외 - (1/숫자/숫자) 패턴
+        if (/\(\d+\/\d+\/?\d*\)$/.test(productName)) {
+          console.log(`수량 정보 포함 상품 제외: ${productName}`);
+          return;
+        }
+
         // 이미지 URL 추출
         let imageUrl = '';
         const img =
@@ -381,8 +550,8 @@ export async function scrapeSinglePage(
         let price = '';
         let originalPrice = '';
 
-        if (siteConfig.id === 'joypartyb2b') {
-          // B2B 사이트용 가격 추출
+        if (siteConfig.id === 'saeroevent' || siteConfig.id === 'joypartyb2b') {
+          // 새로이벤트 및 B2B 사이트용 가격 추출
           const priceElement = container.querySelector(
             siteConfig.selectors.productPrice
           );
@@ -497,6 +666,117 @@ export async function scrapeSinglePage(
   return products;
 }
 
+// 새로이벤트 로그인 함수
+async function loginToSaeroEvent(
+  page: puppeteer.Page
+): Promise<boolean> {
+  try {
+    const username = process.env.SAEROEVENT_USERNAME;
+    const password = process.env.SAEROEVENT_PASSWORD;
+
+    if (!username || !password) {
+      console.error('새로이벤트 로그인 정보가 환경 변수에 없습니다.');
+      return false;
+    }
+
+    console.log('새로이벤트 로그인 시도 중...');
+
+    // 로그인 페이지로 이동
+    await page.goto('https://www.saeroeventb2b.co.kr:10497/login.php', {
+      waitUntil: 'networkidle2',
+      timeout: 30000,
+    });
+
+    // 페이지 완전 로딩을 위한 추가 대기
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    // 로그인 폼 요소 대기 및 입력 - 디버깅에서 확인된 정확한 셀렉터 사용
+    try {
+      // 정확한 셀렉터로 직접 대기
+      await page.waitForSelector('input[name="id"]', { timeout: 10000 });
+      await page.waitForSelector('input[name="pw"]', { timeout: 5000 });
+      
+      console.log('로그인 입력 필드 확인됨');
+      
+      // 입력 필드 클리어 후 입력
+      await page.click('input[name="id"]');
+      await page.evaluate(() => {
+        const idInput = document.querySelector('input[name="id"]') as HTMLInputElement;
+        if (idInput) idInput.value = '';
+      });
+      await page.type('input[name="id"]', username);
+      
+      await page.click('input[name="pw"]');
+      await page.evaluate(() => {
+        const pwInput = document.querySelector('input[name="pw"]') as HTMLInputElement;
+        if (pwInput) pwInput.value = '';
+      });
+      await page.type('input[name="pw"]', password);
+      
+    } catch (error) {
+      console.error('로그인 입력 필드를 찾을 수 없습니다.', error);
+      
+      // 디버그: 페이지 상태 확인
+      const debugInfo = await page.evaluate(() => {
+        return {
+          url: window.location.href,
+          title: document.title,
+          readyState: document.readyState,
+          inputCount: document.querySelectorAll('input').length,
+          formCount: document.querySelectorAll('form').length,
+          bodyText: document.body.textContent?.substring(0, 200) || ''
+        };
+      });
+      console.log('디버그 정보:', debugInfo);
+      return false;
+    }
+
+    // 로그인 버튼 클릭 - 새로이벤트는 a 태그를 사용
+    const loginButton = await page.$('#login');
+    if (loginButton) {
+      console.log('로그인 버튼 클릭');
+      await loginButton.click();
+    } else {
+      // 대체 방법: JavaScript 함수 직접 호출
+      console.log('로그인 함수 직접 호출');
+      await page.evaluate(() => {
+        if (typeof (window as any).login === 'function') {
+          (window as any).login();
+        } else {
+          // 폼 직접 제출
+          const form = document.querySelector('form') as HTMLFormElement;
+          if (form) form.submit();
+        }
+      });
+    }
+
+    // 로그인 후 페이지 대기
+    try {
+      await page.waitForNavigation({
+        waitUntil: 'networkidle2',
+        timeout: 15000,
+      });
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+
+    // 로그인 성공 확인
+    const currentUrl = page.url();
+    const isLoggedIn = !currentUrl.includes('login.php');
+
+    if (isLoggedIn) {
+      console.log('새로이벤트 로그인 성공!');
+      return true;
+    } else {
+      console.error('새로이벤트 로그인 실패');
+      return false;
+    }
+  } catch (error) {
+    console.error('새로이벤트 로그인 중 오류:', error);
+    return false;
+  }
+}
+
 export async function scrapeByCategory(
   categoryCode: string,
   maxPages?: number,
@@ -515,13 +795,24 @@ export async function scrapeByCategory(
     const page = await browser.newPage();
     const site = SITES[siteId];
 
-    // Set a user agent
+    // Set a user agent 먼저 설정
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
 
     // Set viewport
     await page.setViewport({ width: 1920, height: 1080 });
+
+    // 새로이벤트의 경우 로그인 먼저 수행
+    if (siteId === 'saeroevent') {
+      console.log('새로이벤트 로그인 시도...');
+      const loginSuccess = await loginToSaeroEvent(page);
+      if (!loginSuccess) {
+        console.error('새로이벤트 로그인 실패로 크롤링을 중단합니다.');
+        return [];
+      }
+      console.log('새로이벤트 로그인 성공, 크롤링 계속 진행');
+    }
 
     const categoryName =
       site.categories.find((cat) => cat.code === categoryCode)?.name ||
