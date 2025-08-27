@@ -46,15 +46,15 @@ export const SITES: Record<string, SiteConfig> = {
       { code: '048007', name: '은박풍선세트' },
       { code: '048006', name: '천장풍선세트' },
       { code: '048008', name: '벌룬가랜드' },
-      { code: '048004', name: '풍선만들기' }
+      { code: '048004', name: '풍선만들기' },
     ],
     selectors: {
       productLinks: 'a[href*="goods_view.php"]',
       productName: '',
       productPrice: '',
       productImage: 'img',
-      productContainer: 'li, div'
-    }
+      productContainer: 'li, div',
+    },
   },
   joypartyb2b: {
     id: 'joypartyb2b',
@@ -70,9 +70,17 @@ export const SITES: Record<string, SiteConfig> = {
       { code: '4060', name: 'Sempertex 링커', parentCategory: '고무풍선' },
       { code: '4070', name: 'Sempertex 하트', parentCategory: '고무풍선' },
       { code: '40f0', name: '터프텍스', parentCategory: '고무풍선' },
-      { code: '4090', name: '티벌룬/컨페티벌룬/버블벌룬', parentCategory: '고무풍선' },
+      {
+        code: '4090',
+        name: '티벌룬/컨페티벌룬/버블벌룬',
+        parentCategory: '고무풍선',
+      },
       { code: '40g0', name: '조이파티 벌룬팩', parentCategory: '고무풍선' },
-      { code: '40d0', name: '셈퍼텍스 원가이하세일', parentCategory: '고무풍선' },
+      {
+        code: '40d0',
+        name: '셈퍼텍스 원가이하세일',
+        parentCategory: '고무풍선',
+      },
       // 은박풍선 서브카테고리 (총 13개)
       { code: '2030', name: '숫자은박', parentCategory: '은박풍선' },
       { code: '20d0', name: '스틱풍선', parentCategory: '은박풍선' },
@@ -86,38 +94,43 @@ export const SITES: Record<string, SiteConfig> = {
       { code: '2040', name: '은박미니쉐입', parentCategory: '은박풍선' },
       { code: '2050', name: '캐릭터라이센스', parentCategory: '은박풍선' },
       { code: '2020', name: '테마별 은박풍선', parentCategory: '은박풍선' },
-      { code: '2010', name: '모양별 은박풍선', parentCategory: '은박풍선' }
+      { code: '2010', name: '모양별 은박풍선', parentCategory: '은박풍선' },
     ],
     selectors: {
-      productLinks: '.item-list a, .item-wrap a, .item-row a, a[href*="shop_view"]',
+      productLinks:
+        '.item-list a, .item-wrap a, .item-row a, a[href*="shop_view"]',
       productName: '.item-name, .item-subject',
       productPrice: '.item-price, .price',
       productImage: 'img.load_img, .img-wrap img, img',
-      productContainer: '.item-list, .item-wrap, .item-row'
-    }
-  }
+      productContainer: '.item-list, .item-wrap, .item-row',
+    },
+  },
 };
 
 // 기존 CATEGORIES는 joyparty 사이트용으로 유지 (하위호환성)
 export const CATEGORIES: CategoryInfo[] = SITES.joyparty.categories;
 
-export async function getMaxPagesForCategory(page: any, categoryCode: string, siteId: string = 'joyparty'): Promise<number> {
+export async function getMaxPagesForCategory(
+  page: import('puppeteer').Page,
+  categoryCode: string,
+  siteId: string = 'joyparty'
+): Promise<number> {
   const site = SITES[siteId];
-  
+
   if (siteId === 'joypartyb2b') {
     // B2B 사이트는 첫 페이지에서 페이지네이션 HTML 파싱으로 빠르게 확인
     const testUrl = `${site.baseUrl}/shop/list.php?ca_id=${categoryCode}&page=1`;
-    
+
     try {
-      await page.goto(testUrl, { 
+      await page.goto(testUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: 8000 
+        timeout: 8000,
       });
-      
+
       // 페이지네이션에서 최대 페이지 수 파싱 - 더 안전한 방식
       const maxPage = await page.evaluate(() => {
         let maxPageNum = 1;
-        
+
         // 먼저 상품 수로 페이지 추정
         const totalText = document.body.textContent || '';
         const totalMatch = totalText.match(/총\s*(\d+)개의?\s*상품/);
@@ -125,13 +138,13 @@ export async function getMaxPagesForCategory(page: any, categoryCode: string, si
           const totalProducts = parseInt(totalMatch[1]);
           maxPageNum = Math.ceil(totalProducts / 50); // 페이지당 50개로 추정
         }
-        
+
         // 페이지네이션 링크로 검증
         const pageLinks = document.querySelectorAll('a[href*="ca_id="]');
         pageLinks.forEach((link) => {
           const href = link.getAttribute('href') || '';
           const text = link.textContent?.trim() || '';
-          
+
           // 숫자로 된 페이지 링크만 확인
           if (/^\d+$/.test(text) && href.includes('page=')) {
             const pageMatch = href.match(/[?&]page=(\d+)/);
@@ -144,33 +157,38 @@ export async function getMaxPagesForCategory(page: any, categoryCode: string, si
             }
           }
         });
-        
+
         return Math.max(1, Math.min(maxPageNum, 5)); // 최대 5페이지로 보수적 제한
       });
-      
-      console.log(`${site.name} 카테고리 ${categoryCode} 최대 페이지: ${maxPage}`);
+
+      console.log(
+        `${site.name} 카테고리 ${categoryCode} 최대 페이지: ${maxPage}`
+      );
       return maxPage;
     } catch (error) {
-      console.error(`${site.name} 카테고리 ${categoryCode} 페이지 수 확인 중 오류:`, error);
+      console.error(
+        `${site.name} 카테고리 ${categoryCode} 페이지 수 확인 중 오류:`,
+        error
+      );
       return 1;
     }
   }
-  
+
   // 기존 사이트 로직
-  let url: string = `${site.baseUrl}/goods/goods_list.php?page=1&cateCd=${categoryCode}`;
-  
+  const url: string = `${site.baseUrl}/goods/goods_list.php?page=1&cateCd=${categoryCode}`;
+
   try {
-    await page.goto(url, { 
+    await page.goto(url, {
       waitUntil: 'networkidle2',
-      timeout: 30000 
+      timeout: 30000,
     });
-    
+
     // 페이지네이션에서 최대 페이지 수 찾기
     const maxPages = await page.evaluate(() => {
       // 기존 사이트용 페이지네이션 처리
       const pageLinks = document.querySelectorAll('a[href*="page="]');
       let maxPage = 1;
-      
+
       pageLinks.forEach((link) => {
         const href = link.getAttribute('href') || '';
         const pageMatch = href.match(/page=(\d+)/);
@@ -181,9 +199,11 @@ export async function getMaxPagesForCategory(page: any, categoryCode: string, si
           }
         }
       });
-      
+
       // 마지막 페이지 링크도 확인
-      const lastPageLink = document.querySelector('a[href*="page="]:last-of-type');
+      const lastPageLink = document.querySelector(
+        'a[href*="page="]:last-of-type'
+      );
       if (lastPageLink) {
         const href = lastPageLink.getAttribute('href') || '';
         const pageMatch = href.match(/page=(\d+)/);
@@ -194,374 +214,480 @@ export async function getMaxPagesForCategory(page: any, categoryCode: string, si
           }
         }
       }
-      
+
       return maxPage;
     });
-    
-    console.log(`${site.name} 카테고리 ${categoryCode} 최대 페이지: ${maxPages}`);
+
+    console.log(
+      `${site.name} 카테고리 ${categoryCode} 최대 페이지: ${maxPages}`
+    );
     return maxPages;
-  } catch (error) {
-    console.error(`${site.name} 카테고리 ${categoryCode} 페이지 수 확인 중 오류:`, error);
+  } catch {
+    console.error(
+      `${site.name} 카테고리 ${categoryCode} 페이지 수 확인 중 오류`
+    );
     return 1; // 기본값
   }
 }
 
-export async function scrapeSinglePage(page: any, pageNum: number, categoryCode: string, siteId: string = 'joyparty'): Promise<BalloonProduct[]> {
+export async function scrapeSinglePage(
+  page: import('puppeteer').Page,
+  pageNum: number,
+  categoryCode: string,
+  siteId: string = 'joyparty'
+): Promise<BalloonProduct[]> {
   const site = SITES[siteId];
-  const categoryName = site.categories.find(cat => cat.code === categoryCode)?.name || categoryCode;
-  
+  const categoryName =
+    site.categories.find((cat) => cat.code === categoryCode)?.name ||
+    categoryCode;
+
   let url: string;
   if (siteId === 'joypartyb2b') {
     url = `${site.baseUrl}/shop/list.php?ca_id=${categoryCode}&page=${pageNum}`;
   } else {
     url = `${site.baseUrl}/goods/goods_list.php?page=${pageNum}&cateCd=${categoryCode}`;
   }
-  
-  console.log(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum} 크롤링 중...`);
-  
+
+  console.log(
+    `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum} 크롤링 중...`
+  );
+
   // Navigate to the page - B2B 사이트의 동적 로딩을 위해 networkidle2 사용
-  await page.goto(url, { 
+  await page.goto(url, {
     waitUntil: 'networkidle2',
-    timeout: 15000 
+    timeout: 15000,
   });
 
   // 추가 대기 시간 (B2B 사이트의 동적 컨텐츠 로딩을 위해)
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   // 상품 링크가 있는지 확인 - 타임아웃 연장
   try {
     await page.waitForSelector(site.selectors.productLinks, { timeout: 5000 });
-  } catch (error) {
+  } catch {
     // 페이지 내용 디버깅을 위해 HTML 일부 확인
     const pageContent = await page.content();
-    if (pageContent.includes('상품이 없습니다') || pageContent.includes('등록된 상품이 없습니다')) {
-      console.log(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에 등록된 상품이 없습니다.`);
+    if (
+      pageContent.includes('상품이 없습니다') ||
+      pageContent.includes('등록된 상품이 없습니다')
+    ) {
+      console.log(
+        `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에 등록된 상품이 없습니다.`
+      );
     } else {
-      console.log(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 상품 링크를 찾을 수 없습니다.`);
+      console.log(
+        `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 상품 링크를 찾을 수 없습니다.`
+      );
     }
     return [];
   }
 
   // Extract product information
-  const products = await page.evaluate((categoryName, categoryCode, siteConfig, siteName) => {
-    const productList: any[] = [];
-    
-    // 상품 링크 찾기
-    const productLinks = document.querySelectorAll(siteConfig.selectors.productLinks);
-    
-    productLinks.forEach((link) => {
-      const container = link.closest(siteConfig.selectors.productContainer) || link.parentElement;
-      
-      if (!container) return;
-      
-      // 상품명 추출
-      let productName = '';
-      
-      if (siteConfig.id === 'joypartyb2b') {
-        // B2B 사이트용 상품명 추출 - title 속성이나 전체 텍스트 우선
-        const nameElement = container.querySelector('.item-name');
-        if (nameElement) {
-          // title 속성에서 전체 이름 추출 (CSS로 짤리기 전의 원본)
-          productName = nameElement.getAttribute('title') || 
-                       nameElement.textContent?.trim() || '';
-        } else {
-          // 링크에서 title 속성 확인
-          productName = link.getAttribute('title') || 
-                       link.textContent?.trim() || '';
-        }
-      } else {
-        // 기존 사이트용 상품명 추출
-        const textContent = link.textContent?.trim() || '';
-        if (textContent && textContent.length > 0) {
-          productName = textContent.replace(/[\d,]+원/g, '').replace(/\s+/g, ' ').trim();
-        }
-      }
-      
-      // 상품명이 없거나 너무 짧으면 건너뛰기
-      if (!productName || productName.length < 2) return;
-      
-      // "..."이 포함된 줄임표시 상품명은 건너뛰기 (중복 방지)
-      if (productName.includes('...') || 
-          productName.endsWith('…') || 
-          productName.includes('…') ||
-          productName.endsWith('[…') ||
-          productName.includes('[…')) return;
-      
-      // "DC"가 포함된 상품명은 제외
-      if (productName.includes('DC')) return;
-      
-      // 이미지 URL 추출
-      let imageUrl = '';
-      const img = container.querySelector(siteConfig.selectors.productImage) || link.querySelector('img');
-      if (img) {
-        imageUrl = img.getAttribute('src') || 
-                  img.getAttribute('data-original') || 
-                  img.getAttribute('data-src') || '';
-        
-        // URL 정리
-        if (imageUrl && !imageUrl.startsWith('http')) {
-          if (imageUrl.startsWith('//')) {
-            imageUrl = 'https:' + imageUrl;
-          } else if (imageUrl.startsWith('/')) {
-            imageUrl = siteConfig.baseUrl + imageUrl;
-          } else if (imageUrl.startsWith('../')) {
-            imageUrl = siteConfig.baseUrl + '/goods/' + imageUrl.replace(/^\.\.\//, '');
+  const products = await page.evaluate(
+    (
+      categoryName: string,
+      categoryCode: string,
+      siteConfig: SiteConfig,
+      siteName: string
+    ) => {
+      const productList: BalloonProduct[] = [];
+
+      // 상품 링크 찾기
+      const productLinks = document.querySelectorAll(
+        siteConfig.selectors.productLinks
+      );
+
+      productLinks.forEach((link) => {
+        const container =
+          link.closest(siteConfig.selectors.productContainer) ||
+          link.parentElement;
+
+        if (!container) return;
+
+        // 상품명 추출
+        let productName = '';
+
+        if (siteConfig.id === 'joypartyb2b') {
+          // B2B 사이트용 상품명 추출 - title 속성이나 전체 텍스트 우선
+          const nameElement = container.querySelector('.item-name');
+          if (nameElement) {
+            // title 속성에서 전체 이름 추출 (CSS로 짤리기 전의 원본)
+            productName =
+              nameElement.getAttribute('title') ||
+              nameElement.textContent?.trim() ||
+              '';
           } else {
-            imageUrl = siteConfig.baseUrl + '/' + imageUrl;
+            // 링크에서 title 속성 확인
+            productName =
+              link.getAttribute('title') || link.textContent?.trim() || '';
+          }
+        } else {
+          // 기존 사이트용 상품명 추출
+          const textContent = link.textContent?.trim() || '';
+          if (textContent && textContent.length > 0) {
+            productName = textContent
+              .replace(/[\d,]+원/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
           }
         }
-      }
-      
-      // 가격 추출
-      let price = '';
-      let originalPrice = '';
-      
-      if (siteConfig.id === 'joypartyb2b') {
-        // B2B 사이트용 가격 추출
-        const priceElement = container.querySelector(siteConfig.selectors.productPrice);
-        if (priceElement) {
-          const priceText = priceElement.textContent || '';
-          const priceMatches = priceText.match(/[\d,]+원?/g);
-          if (priceMatches && priceMatches.length > 0) {
-            price = priceMatches[priceMatches.length - 1];
-            if (priceMatches.length > 1) {
-              originalPrice = priceMatches[0];
+
+        // 상품명이 없거나 너무 짧으면 건너뛰기
+        if (!productName || productName.length < 2) return;
+
+        // "..."이 포함된 줄임표시 상품명은 건너뛰기 (중복 방지)
+        if (
+          productName.includes('...') ||
+          productName.endsWith('…') ||
+          productName.includes('…') ||
+          productName.endsWith('[…') ||
+          productName.includes('[…')
+        )
+          return;
+
+        // "DC"가 포함된 상품명은 제외
+        if (productName.includes('DC')) return;
+
+        // 이미지 URL 추출
+        let imageUrl = '';
+        const img =
+          container.querySelector(siteConfig.selectors.productImage) ||
+          link.querySelector('img');
+        if (img) {
+          imageUrl =
+            img.getAttribute('src') ||
+            img.getAttribute('data-original') ||
+            img.getAttribute('data-src') ||
+            '';
+
+          // URL 정리
+          if (imageUrl && !imageUrl.startsWith('http')) {
+            if (imageUrl.startsWith('//')) {
+              imageUrl = 'https:' + imageUrl;
+            } else if (imageUrl.startsWith('/')) {
+              imageUrl = siteConfig.baseUrl + imageUrl;
+            } else if (imageUrl.startsWith('../')) {
+              imageUrl =
+                siteConfig.baseUrl +
+                '/goods/' +
+                imageUrl.replace(/^\.\.\//, '');
+            } else {
+              imageUrl = siteConfig.baseUrl + '/' + imageUrl;
             }
           }
         }
-      } else {
-        // 기존 사이트용 가격 추출
-        const priceText = container.textContent || '';
-        const priceMatches = priceText.match(/[\d,]+원/g);
-        if (priceMatches && priceMatches.length > 0) {
-          if (priceMatches.length > 1) {
-            originalPrice = priceMatches[priceMatches.length - 2];
-            price = priceMatches[priceMatches.length - 1];
-          } else {
-            price = priceMatches[0];
+
+        // 가격 추출
+        let price = '';
+        let originalPrice = '';
+
+        if (siteConfig.id === 'joypartyb2b') {
+          // B2B 사이트용 가격 추출
+          const priceElement = container.querySelector(
+            siteConfig.selectors.productPrice
+          );
+          if (priceElement) {
+            const priceText = priceElement.textContent || '';
+            const priceMatches = priceText.match(/[\d,]+원?/g);
+            if (priceMatches && priceMatches.length > 0) {
+              price = priceMatches[priceMatches.length - 1];
+              if (priceMatches.length > 1) {
+                originalPrice = priceMatches[0];
+              }
+            }
+          }
+        } else {
+          // 기존 사이트용 가격 추출
+          const priceText = container.textContent || '';
+          const priceMatches = priceText.match(/[\d,]+원/g);
+          if (priceMatches && priceMatches.length > 0) {
+            if (priceMatches.length > 1) {
+              originalPrice = priceMatches[priceMatches.length - 2];
+              price = priceMatches[priceMatches.length - 1];
+            } else {
+              price = priceMatches[0];
+            }
           }
         }
-      }
-      
-      // 링크 URL 정리
-      let productLink = link.getAttribute('href') || '';
-      if (productLink && !productLink.startsWith('http')) {
-        if (productLink.startsWith('//')) {
-          productLink = 'https:' + productLink;
-        } else if (productLink.startsWith('/')) {
-          productLink = siteConfig.baseUrl + productLink;
-        } else if (productLink.startsWith('../')) {
-          productLink = siteConfig.baseUrl + productLink.replace(/^\.\./, '');
-        } else {
-          productLink = siteConfig.baseUrl + '/' + productLink;
-        }
-      }
-      
-      productList.push({
-        name: productName,
-        price: price,
-        originalPrice: originalPrice,
-        imageUrl: imageUrl,
-        link: productLink,
-        category: categoryName,
-        categoryCode: categoryCode,
-        site: siteName
-      });
-    });
-    
-    // 중복 제거: 같은 상품의 완전한 이름과 줄임 이름이 있을 때 완전한 이름만 유지
-    const uniqueProducts = [];
-    const seenProducts = new Set();
-    
-    // 줄임표시가 없는 완전한 상품명을 우선적으로 처리
-    const fullNames = productList.filter(p => !p.name.includes('...') && !p.name.includes('…'));
-    const truncatedNames = productList.filter(p => p.name.includes('...') || p.name.includes('…'));
-    
-    // 완전한 이름들을 먼저 추가
-    fullNames.forEach(product => {
-      const normalizedName = product.name.trim().toLowerCase();
-      if (!seenProducts.has(normalizedName)) {
-        seenProducts.add(normalizedName);
-        uniqueProducts.push(product);
-      }
-    });
-    
-    // 줄임 이름들은 유사한 완전한 이름이 없는 경우에만 추가
-    truncatedNames.forEach(product => {
-      const baseName = product.name.replace(/\s*\.\.\.\s*$/, '').replace(/\s*…\s*$/, '').trim().toLowerCase();
-      let shouldAdd = true;
-      
-      // 이미 추가된 완전한 이름들과 비교
-      for (const existingName of seenProducts) {
-        if (existingName.startsWith(baseName) || baseName.startsWith(existingName)) {
-          shouldAdd = false;
-          break;
-        }
-      }
-      
-      if (shouldAdd && !seenProducts.has(baseName)) {
-        seenProducts.add(baseName);
-        uniqueProducts.push(product);
-      }
-    });
-    
-    return uniqueProducts;
-  }, categoryName, categoryCode, site, site.name);
 
-  console.log(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 ${products.length}개 상품 발견`);
+        // 링크 URL 정리
+        let productLink = link.getAttribute('href') || '';
+        if (productLink && !productLink.startsWith('http')) {
+          if (productLink.startsWith('//')) {
+            productLink = 'https:' + productLink;
+          } else if (productLink.startsWith('/')) {
+            productLink = siteConfig.baseUrl + productLink;
+          } else if (productLink.startsWith('../')) {
+            productLink = siteConfig.baseUrl + productLink.replace(/^\.\./, '');
+          } else {
+            productLink = siteConfig.baseUrl + '/' + productLink;
+          }
+        }
+
+        productList.push({
+          name: productName,
+          price: price,
+          originalPrice: originalPrice,
+          imageUrl: imageUrl,
+          link: productLink,
+          category: categoryName,
+          categoryCode: categoryCode,
+          site: siteName,
+        });
+      });
+
+      // 중복 제거: 같은 상품의 완전한 이름과 줄임 이름이 있을 때 완전한 이름만 유지
+      const uniqueProducts: BalloonProduct[] = [];
+      const seenProducts = new Set<string>();
+
+      // 줄임표시가 없는 완전한 상품명을 우선적으로 처리
+      const fullNames = productList.filter(
+        (p) => !p.name.includes('...') && !p.name.includes('…')
+      );
+      const truncatedNames = productList.filter(
+        (p) => p.name.includes('...') || p.name.includes('…')
+      );
+
+      // 완전한 이름들을 먼저 추가
+      fullNames.forEach((product) => {
+        const normalizedName = product.name.trim().toLowerCase();
+        if (!seenProducts.has(normalizedName)) {
+          seenProducts.add(normalizedName);
+          uniqueProducts.push(product);
+        }
+      });
+
+      // 줄임 이름들은 유사한 완전한 이름이 없는 경우에만 추가
+      truncatedNames.forEach((product) => {
+        const baseName = product.name
+          .replace(/\s*\.\.\.\s*$/, '')
+          .replace(/\s*…\s*$/, '')
+          .trim()
+          .toLowerCase();
+        let shouldAdd = true;
+
+        // 이미 추가된 완전한 이름들과 비교
+        for (const existingName of seenProducts) {
+          if (
+            existingName.startsWith(baseName) ||
+            baseName.startsWith(existingName)
+          ) {
+            shouldAdd = false;
+            break;
+          }
+        }
+
+        if (shouldAdd && !seenProducts.has(baseName)) {
+          seenProducts.add(baseName);
+          uniqueProducts.push(product);
+        }
+      });
+
+      return uniqueProducts;
+    },
+    categoryName,
+    categoryCode,
+    site,
+    site.name
+  );
+
+  console.log(
+    `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 ${products.length}개 상품 발견`
+  );
   return products;
 }
 
-export async function scrapeByCategory(categoryCode: string, maxPages?: number, siteId: string = 'joyparty'): Promise<BalloonProduct[]> {
+export async function scrapeByCategory(
+  categoryCode: string,
+  maxPages?: number,
+  siteId: string = 'joyparty'
+): Promise<BalloonProduct[]> {
   const browser = await puppeteer.launch({
     headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-blink-features=AutomationControlled'
-    ]
+      '--disable-blink-features=AutomationControlled',
+    ],
   });
 
   try {
     const page = await browser.newPage();
     const site = SITES[siteId];
-    
+
     // Set a user agent
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    );
+
     // Set viewport
     await page.setViewport({ width: 1920, height: 1080 });
-    
-    const categoryName = site.categories.find(cat => cat.code === categoryCode)?.name || categoryCode;
+
+    const categoryName =
+      site.categories.find((cat) => cat.code === categoryCode)?.name ||
+      categoryCode;
     console.log(`${site.name} 카테고리 ${categoryName} 크롤링 시작`);
-    
+
     // 최대 페이지 수 확인 (제공되지 않은 경우)
     if (!maxPages) {
       maxPages = await getMaxPagesForCategory(page, categoryCode, siteId);
     }
-    
+
     const allProducts: BalloonProduct[] = [];
-    
+
     // Scrape all pages for this category with early termination
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       try {
-        const products = await scrapeSinglePage(page, pageNum, categoryCode, siteId);
-        
+        const products = await scrapeSinglePage(
+          page,
+          pageNum,
+          categoryCode,
+          siteId
+        );
+
         // 빈 페이지 조기 종료
         if (products.length === 0 && pageNum > 1) {
-          console.log(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}가 비어있어서 크롤링 중단`);
+          console.log(
+            `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}가 비어있어서 크롤링 중단`
+          );
           break;
         }
-        
+
         allProducts.push(...products);
-        
+
         // 페이지간 딜레이 단축
         if (pageNum < maxPages) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise((resolve) => setTimeout(resolve, 200));
         }
-      } catch (error) {
-        console.error(`${site.name} 카테고리 ${categoryName} 페이지 ${pageNum} 크롤링 중 오류:`, error);
+      } catch (error: unknown) {
+        console.error('Error normalizing URL:', error);
+        console.error(
+          `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum} 크롤링 중 오류:`,
+          error
+        );
         // 오류 발생 시에도 조기 종료 고려
         if (pageNum > 1) break;
       }
     }
-    
-    console.log(`${site.name} 카테고리 ${categoryName} 크롤링 완료: ${allProducts.length}개 상품`);
+
+    console.log(
+      `${site.name} 카테고리 ${categoryName} 크롤링 완료: ${allProducts.length}개 상품`
+    );
     return allProducts;
   } finally {
     await browser.close();
   }
 }
 
-export async function scrapeAllCategories(selectedCategories?: string[], siteId: string = 'joyparty'): Promise<Map<string, BalloonProduct[]>> {
+export async function scrapeAllCategories(
+  selectedCategories?: string[],
+  siteId: string = 'joyparty'
+): Promise<Map<string, BalloonProduct[]>> {
   const site = SITES[siteId];
-  const categoriesToScrape = selectedCategories ? 
-    site.categories.filter(cat => selectedCategories.includes(cat.code)) : 
-    site.categories;
-    
+  const categoriesToScrape = selectedCategories
+    ? site.categories.filter((cat) => selectedCategories.includes(cat.code))
+    : site.categories;
+
   const resultMap = new Map<string, BalloonProduct[]>();
-  
-  console.log(`${site.name} ${categoriesToScrape.length}개 카테고리 크롤링 시작`);
-  
+
+  console.log(
+    `${site.name} ${categoriesToScrape.length}개 카테고리 크롤링 시작`
+  );
+
   for (const category of categoriesToScrape) {
     try {
       const products = await scrapeByCategory(category.code, undefined, siteId);
       resultMap.set(category.code, products);
-      
+
       // 카테고리간 짧은 딜레이
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (error) {
-      console.error(`${site.name} 카테고리 ${category.name} 크롤링 실패:`, error);
+      console.error(
+        `${site.name} 카테고리 ${category.name} 크롤링 실패:`,
+        error
+      );
       resultMap.set(category.code, []);
     }
   }
-  
+
   return resultMap;
 }
 
-export function createMultiCategoryExcelFile(categoryProductsMap: Map<string, BalloonProduct[]>, siteId: string = 'joyparty'): Buffer {
+export function createMultiCategoryExcelFile(
+  categoryProductsMap: Map<string, BalloonProduct[]>,
+  siteId: string = 'joyparty'
+): Buffer {
   // Create a new workbook
   const wb = XLSX.utils.book_new();
   const site = SITES[siteId];
-  
+
   // 전체 상품 수 계산
   let totalProducts = 0;
-  categoryProductsMap.forEach(products => totalProducts += products.length);
-  
+  categoryProductsMap.forEach((products) => (totalProducts += products.length));
+
   // 모든 사이트에 대해 개별 카테고리별로 시트 생성
   categoryProductsMap.forEach((products, categoryCode) => {
-    const category = site.categories.find(cat => cat.code === categoryCode);
+    const category = site.categories.find((cat) => cat.code === categoryCode);
     const categoryName = category?.name || categoryCode;
     const sheetName = `${categoryName}`.replace(/[:\\/\?\*\[\]]/g, '_');
-    
+
     console.log(`엑셀 시트 생성: ${sheetName}`);
-    
+
     const worksheetData = products.map((product, index) => ({
-      '번호': index + 1,
-      '상품명': product.name
+      번호: index + 1,
+      상품명: product.name,
     }));
-    
+
     const ws = XLSX.utils.json_to_sheet(worksheetData);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
-  
+
   // 버퍼로 변환
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   return Buffer.from(buffer);
 }
 
 // 기존 함수들 (하위 호환성을 위해 유지)
-export async function scrapeBalloonProducts(url: string, maxPages: number = 43): Promise<BalloonProduct[]> {
+export async function scrapeBalloonProducts(): Promise<BalloonProduct[]> {
   // 기존 전체 크롤링 방식 (joyparty 사이트)
   const allProducts = await scrapeAllCategories();
   const result: BalloonProduct[] = [];
-  
-  allProducts.forEach(products => {
+
+  allProducts.forEach((products) => {
     result.push(...products);
   });
-  
+
   return result;
 }
 
-export function createExcelFile(products: BalloonProduct[], filename: string = 'balloon_products.xlsx'): Buffer {
+export function createExcelFile(products: BalloonProduct[]): Buffer {
   const wb = XLSX.utils.book_new();
-  
+
   const wsData = [
-    ['번호', '사이트', '상품명', '판매가격', '원가', '이미지 URL', '상품 링크', '카테고리'],
+    [
+      '번호',
+      '사이트',
+      '상품명',
+      '판매가격',
+      '원가',
+      '이미지 URL',
+      '상품 링크',
+      '카테고리',
+    ],
     ...products.map((p, index) => [
       index + 1,
       p.site || '조이파티',
-      p.name, 
-      p.price || '', 
+      p.name,
+      p.price || '',
       p.originalPrice || '',
-      p.imageUrl || '', 
+      p.imageUrl || '',
       p.link || '',
-      p.category || ''
-    ])
+      p.category || '',
+    ]),
   ];
-  
+
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  
+
   ws['!cols'] = [
     { wch: 8 },
     { wch: 15 },
@@ -570,11 +696,11 @@ export function createExcelFile(products: BalloonProduct[], filename: string = '
     { wch: 15 },
     { wch: 80 },
     { wch: 80 },
-    { wch: 20 }
+    { wch: 20 },
   ];
-  
+
   XLSX.utils.book_append_sheet(wb, ws, 'All Products');
-  
+
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
   return Buffer.from(buffer);
 }

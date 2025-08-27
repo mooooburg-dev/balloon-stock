@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface Category {
   code: string;
@@ -20,19 +20,14 @@ export default function Home() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [crawlingMode, setCrawlingMode] = useState<'all' | 'category'>('all');
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Array<{name: string; price?: string; originalPrice?: string; imageUrl?: string; link?: string; category?: string}>>([]);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [categoryStats, setCategoryStats] = useState<Record<string, number>>(
     {}
   );
 
-  // 컴포넌트 마운트 시 사이트 및 카테고리 정보 가져오기
-  useEffect(() => {
-    fetchCategories();
-  }, [selectedSite]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await fetch(
         `/api/scrape?categories=true&siteId=${selectedSite}`
@@ -47,7 +42,12 @@ export default function Home() {
     } catch (error) {
       console.error('사이트/카테고리 정보 로딩 실패:', error);
     }
-  };
+  }, [selectedSite]);
+
+  // 컴포넌트 마운트 시 사이트 및 카테고리 정보 가져오기
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleCategoryToggle = (categoryCode: string) => {
     setSelectedCategories((prev) => {
@@ -90,7 +90,7 @@ export default function Home() {
         setError(data.error || '미리보기 실패');
         setProgress('');
       }
-    } catch (err) {
+    } catch {
       setError('네트워크 오류가 발생했습니다.');
       setProgress('');
     } finally {
@@ -152,7 +152,7 @@ export default function Home() {
         setError(data.error || '엑셀 다운로드 실패');
         setProgress('');
       }
-    } catch (err) {
+    } catch {
       setError('네트워크 오류가 발생했습니다.');
       setProgress('');
     } finally {
@@ -377,6 +377,7 @@ export default function Home() {
                     </td>
                     <td className="py-2 px-4">
                       {product.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={product.imageUrl}
                           alt={product.name}
