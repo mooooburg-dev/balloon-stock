@@ -7,7 +7,15 @@ interface Category {
   name: string;
 }
 
+interface Site {
+  name: string;
+  url: string;
+  categories: Category[];
+}
+
 export default function Home() {
+  const [sites, setSites] = useState<Record<string, Site>>({});
+  const [selectedSite, setSelectedSite] = useState<string>('joyparty');
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [crawlingMode, setCrawlingMode] = useState<'all' | 'category'>('all');
@@ -15,31 +23,36 @@ export default function Home() {
   const [products, setProducts] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
-  const [categoryStats, setCategoryStats] = useState<Record<string, number>>({});
+  const [categoryStats, setCategoryStats] = useState<Record<string, number>>(
+    {}
+  );
 
-  // 컴포넌트 마운트 시 카테고리 정보 가져오기
+  // 컴포넌트 마운트 시 사이트 및 카테고리 정보 가져오기
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [selectedSite]);
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/scrape?categories=true');
+      const response = await fetch(
+        `/api/scrape?categories=true&siteId=${selectedSite}`
+      );
       const data = await response.json();
       if (data.success) {
+        setSites(data.sites);
         setCategories(data.categories);
         // 기본적으로 모든 카테고리 선택
         setSelectedCategories(data.categories.map((cat: Category) => cat.code));
       }
     } catch (error) {
-      console.error('카테고리 정보 로딩 실패:', error);
+      console.error('사이트/카테고리 정보 로딩 실패:', error);
     }
   };
 
   const handleCategoryToggle = (categoryCode: string) => {
-    setSelectedCategories(prev => {
+    setSelectedCategories((prev) => {
       if (prev.includes(categoryCode)) {
-        return prev.filter(code => code !== categoryCode);
+        return prev.filter((code) => code !== categoryCode);
       } else {
         return [...prev, categoryCode];
       }
@@ -50,7 +63,7 @@ export default function Home() {
     if (selectedCategories.length === categories.length) {
       setSelectedCategories([]);
     } else {
-      setSelectedCategories(categories.map(cat => cat.code));
+      setSelectedCategories(categories.map((cat) => cat.code));
     }
   };
 
@@ -61,13 +74,14 @@ export default function Home() {
     setProgress('미리보기 생성 중...');
 
     try {
-      const url = crawlingMode === 'category' && selectedCategories.length > 0
-        ? `/api/scrape?preview=true&category=${selectedCategories[0]}`
-        : '/api/scrape?preview=true&category=all';
+      const url =
+        crawlingMode === 'category' && selectedCategories.length > 0
+          ? `/api/scrape?preview=true&category=${selectedCategories[0]}&siteId=${selectedSite}`
+          : `/api/scrape?preview=true&category=all&siteId=${selectedSite}`;
 
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (response.ok) {
         setProducts(data.products);
         setCategoryStats(data.categoryStats || {});
@@ -93,15 +107,17 @@ export default function Home() {
     setLoading(true);
     setError('');
     setProgress(
-      crawlingMode === 'all' 
-        ? '전체 7개 카테고리 크롤링 중... (약 5-10분 소요)'
+      crawlingMode === 'all'
+        ? `전체 ${categories.length}개 카테고리 크롤링 중... (약 5-10분 소요)`
         : `선택된 ${selectedCategories.length}개 카테고리 크롤링 중...`
     );
 
     try {
       const requestBody = {
         mode: crawlingMode,
-        categories: crawlingMode === 'category' ? selectedCategories : undefined
+        categories:
+          crawlingMode === 'category' ? selectedCategories : undefined,
+        siteId: selectedSite,
       };
 
       const response = await fetch('/api/scrape', {
@@ -117,12 +133,13 @@ export default function Home() {
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        
+
         // 파일명을 Content-Disposition에서 추출하거나 기본값 사용
         const contentDisposition = response.headers.get('Content-Disposition');
-        const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || 
+        const filename =
+          contentDisposition?.match(/filename="(.+)"/)?.[1] ||
           `balloon_products_${Date.now()}.xlsx`;
-        
+
         link.download = filename;
         document.body.appendChild(link);
         link.click();
@@ -146,13 +163,37 @@ export default function Home() {
   return (
     <div className="min-h-screen p-8 max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">풍선 상품 크롤러</h1>
+        <h1 className="text-3xl font-bold mb-4">🎈풍선 상품 크롤러</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Joy Party 웹사이트에서 카테고리별로 풍선 상품 정보를 수집하여 엑셀 파일로 다운로드합니다.
+          Joy Party 웹사이트에서 카테고리별로 풍선 상품 정보를 수집하여 엑셀
+          파일로 다운로드합니다.
         </p>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+        {/* 사이트 선택 */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-3">
+            크롤링 사이트
+          </label>
+          <div className="flex gap-4">
+            {Object.entries(sites).map(([siteId, site]) => (
+              <label key={siteId} className="flex items-center">
+                <input
+                  type="radio"
+                  name="site"
+                  value={siteId}
+                  checked={selectedSite === siteId}
+                  onChange={(e) => setSelectedSite(e.target.value)}
+                  disabled={loading}
+                  className="mr-2"
+                />
+                {site.name}
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* 크롤링 모드 선택 */}
         <div className="mb-6">
           <label className="block text-sm font-medium mb-3">크롤링 모드</label>
@@ -163,11 +204,13 @@ export default function Home() {
                 name="crawlingMode"
                 value="all"
                 checked={crawlingMode === 'all'}
-                onChange={(e) => setCrawlingMode(e.target.value as 'all' | 'category')}
+                onChange={(e) =>
+                  setCrawlingMode(e.target.value as 'all' | 'category')
+                }
                 disabled={loading}
                 className="mr-2"
               />
-              전체 카테고리 (7개)
+              전체 카테고리 ({categories.length}개)
             </label>
             <label className="flex items-center">
               <input
@@ -175,7 +218,9 @@ export default function Home() {
                 name="crawlingMode"
                 value="category"
                 checked={crawlingMode === 'category'}
-                onChange={(e) => setCrawlingMode(e.target.value as 'all' | 'category')}
+                onChange={(e) =>
+                  setCrawlingMode(e.target.value as 'all' | 'category')
+                }
                 disabled={loading}
                 className="mr-2"
               />
@@ -189,19 +234,25 @@ export default function Home() {
           <div className="mb-6">
             <div className="flex justify-between items-center mb-3">
               <label className="block text-sm font-medium">
-                크롤링할 카테고리 선택 ({selectedCategories.length}/{categories.length})
+                크롤링할 카테고리 선택 ({selectedCategories.length}/
+                {categories.length})
               </label>
               <button
                 onClick={handleSelectAll}
                 disabled={loading}
                 className="text-blue-500 hover:text-blue-700 text-sm"
               >
-                {selectedCategories.length === categories.length ? '전체 해제' : '전체 선택'}
+                {selectedCategories.length === categories.length
+                  ? '전체 해제'
+                  : '전체 선택'}
               </button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {categories.map((category) => (
-                <label key={category.code} className="flex items-center p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                <label
+                  key={category.code}
+                  className="flex items-center p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
                   <input
                     type="checkbox"
                     checked={selectedCategories.includes(category.code)}
@@ -225,16 +276,20 @@ export default function Home() {
             disabled={loading}
             className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading && progress.includes('미리보기') ? '로딩중...' : '미리보기'}
+            {loading && progress.includes('미리보기')
+              ? '로딩중...'
+              : '미리보기'}
           </button>
           <button
             onClick={handleDownload}
             disabled={loading}
             className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading && !progress.includes('미리보기') ? '크롤링 중...' : 
-             crawlingMode === 'all' ? '전체 카테고리 엑셀 다운로드' : 
-             `선택 카테고리 엑셀 다운로드`}
+            {loading && !progress.includes('미리보기')
+              ? '크롤링 중...'
+              : crawlingMode === 'all'
+              ? '전체 카테고리 엑셀 다운로드'
+              : `선택 카테고리 엑셀 다운로드`}
           </button>
         </div>
 
@@ -252,7 +307,9 @@ export default function Home() {
 
         <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <p className="text-sm text-yellow-700 dark:text-yellow-400">
-            <strong>새로운 기능:</strong> 카테고리별로 나누어진 엑셀 파일을 다운로드할 수 있습니다.
+            <strong>새로운 기능:</strong>
+            {selectedSite === 'joyparty' ? 'Joy Party' : '조이파티B2B'}{' '}
+            사이트에서 카테고리별로 나누어진 엑셀 파일을 다운로드할 수 있습니다.
             각 카테고리는 별도의 탭으로 구성되며, 요약 탭도 포함됩니다.
           </p>
         </div>
@@ -264,9 +321,14 @@ export default function Home() {
           <h3 className="text-lg font-bold mb-4">카테고리별 상품 수</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Object.entries(categoryStats).map(([category, count]) => (
-              <div key={category} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div
+                key={category}
+                className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              >
                 <div className="font-medium">{category}</div>
-                <div className="text-2xl font-bold text-blue-600">{count}개</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {count}개
+                </div>
               </div>
             ))}
           </div>
@@ -275,7 +337,9 @@ export default function Home() {
 
       {products.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold mb-4">상품 목록 미리보기 ({products.length}개)</h2>
+          <h2 className="text-xl font-bold mb-4">
+            상품 목록 미리보기 ({products.length}개)
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -298,9 +362,9 @@ export default function Home() {
                       </span>
                     </td>
                     <td className="py-2 px-4">
-                      <a 
-                        href={product.link} 
-                        target="_blank" 
+                      <a
+                        href={product.link}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-500 hover:underline"
                       >
@@ -308,11 +372,13 @@ export default function Home() {
                       </a>
                     </td>
                     <td className="py-2 px-4">{product.price}</td>
-                    <td className="py-2 px-4 line-through text-gray-500">{product.originalPrice}</td>
+                    <td className="py-2 px-4 line-through text-gray-500">
+                      {product.originalPrice}
+                    </td>
                     <td className="py-2 px-4">
                       {product.imageUrl && (
-                        <img 
-                          src={product.imageUrl} 
+                        <img
+                          src={product.imageUrl}
                           alt={product.name}
                           className="w-16 h-16 object-cover rounded"
                         />
