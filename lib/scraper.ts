@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Page } from 'puppeteer';
 import * as XLSX from 'xlsx';
 import { config } from 'dotenv';
 
@@ -184,7 +184,7 @@ export const SITES: Record<string, SiteConfig> = {
 export const CATEGORIES: CategoryInfo[] = SITES.joyparty.categories;
 
 export async function getMaxPagesForCategory(
-  page: puppeteer.Page,
+  page: Page,
   categoryCode: string,
   siteId: string = 'joyparty'
 ): Promise<number> {
@@ -224,11 +224,11 @@ export async function getMaxPagesForCategory(
           const totalProducts = parseInt(totalMatch[1]);
           const estimatedPages = Math.ceil(totalProducts / 20); // 페이지당 20개
           if (estimatedPages > maxPageNum) {
-            maxPageNum = Math.min(estimatedPages, 10); // 최대 10페이지로 제한
+            maxPageNum = Math.min(estimatedPages, 50); // 최대 50페이지로 확장
           }
         }
 
-        return Math.max(1, Math.min(maxPageNum, 5)); // 보수적으로 최대 5페이지
+        return Math.max(1, Math.min(maxPageNum, 50)); // 최대 50페이지로 확장 (1000개 상품까지 지원)
       });
 
       console.log(
@@ -356,7 +356,7 @@ export async function getMaxPagesForCategory(
 }
 
 export async function scrapeSinglePage(
-  page: puppeteer.Page,
+  page: Page,
   pageNum: number,
   categoryCode: string,
   siteId: string = 'joyparty'
@@ -391,20 +391,22 @@ export async function scrapeSinglePage(
   // 상품 링크가 있는지 확인 - 새로이벤트의 경우 더 긴 대기 시간
   const waitTimeout = siteId === 'saeroevent' ? 10000 : 5000;
   try {
-    await page.waitForSelector(site.selectors.productLinks, { timeout: waitTimeout });
+    await page.waitForSelector(site.selectors.productLinks, {
+      timeout: waitTimeout,
+    });
   } catch {
     // 페이지 내용 디버깅을 위해 HTML 일부 확인
     const pageContent = await page.content();
     const currentUrl = page.url();
-    
+
     console.log(`${site.name} 현재 URL: ${currentUrl}`);
-    
+
     // 새로이벤트의 경우 로그인 상태 확인
     if (siteId === 'saeroevent' && currentUrl.includes('login.php')) {
       console.log('새로이벤트 로그인 상태가 만료되었습니다.');
       return [];
     }
-    
+
     if (
       pageContent.includes('상품이 없습니다') ||
       pageContent.includes('등록된 상품이 없습니다')
@@ -416,17 +418,21 @@ export async function scrapeSinglePage(
       console.log(
         `${site.name} 카테고리 ${categoryName} 페이지 ${pageNum}에서 상품 링크를 찾을 수 없습니다.`
       );
-      
+
       // 새로이벤트의 경우 추가 디버깅 정보
       if (siteId === 'saeroevent') {
         const linkCount = await page.evaluate(() => {
           return {
             allLinks: document.querySelectorAll('a').length,
-            productLinks: document.querySelectorAll('a[href*="m_goods_detail.php"]').length,
-            images: document.querySelectorAll('img').length
+            productLinks: document.querySelectorAll(
+              'a[href*="m_goods_detail.php"]'
+            ).length,
+            images: document.querySelectorAll('img').length,
           };
         });
-        console.log(`디버깅 정보 - 전체 링크: ${linkCount.allLinks}, 상품 링크: ${linkCount.productLinks}, 이미지: ${linkCount.images}`);
+        console.log(
+          `디버깅 정보 - 전체 링크: ${linkCount.allLinks}, 상품 링크: ${linkCount.productLinks}, 이미지: ${linkCount.images}`
+        );
       }
     }
     return [];
@@ -463,10 +469,11 @@ export async function scrapeSinglePage(
           if (img) {
             productName = img.getAttribute('alt')?.trim() || '';
           }
-          
+
           // alt가 없으면 링크의 title 속성이나 텍스트 확인
           if (!productName) {
-            productName = link.getAttribute('title') || link.textContent?.trim() || '';
+            productName =
+              link.getAttribute('title') || link.textContent?.trim() || '';
           }
         } else if (siteConfig.id === 'joypartyb2b') {
           // B2B 사이트용 상품명 추출 - title 속성이나 전체 텍스트 우선
@@ -510,12 +517,6 @@ export async function scrapeSinglePage(
 
         // "DC"가 포함된 상품명은 제외
         if (productName.includes('DC')) return;
-
-        // 수량 정보가 포함된 중복 상품명 제외 - (1/숫자/숫자) 패턴
-        if (/\(\d+\/\d+\/?\d*\)$/.test(productName)) {
-          console.log(`수량 정보 포함 상품 제외: ${productName}`);
-          return;
-        }
 
         // 이미지 URL 추출
         let imageUrl = '';
@@ -605,24 +606,76 @@ export async function scrapeSinglePage(
         });
       });
 
-      // 중복 제거: 같은 상품의 완전한 이름과 줄임 이름이 있을 때 완전한 이름만 유지
+      // 중복 제거: 수량 정보가 포함된 중복 상품 필터링
       const uniqueProducts: BalloonProduct[] = [];
-      const seenProducts = new Set<string>();
+      const seenProducts = new Map<string, BalloonProduct>();
+
+      productList.forEach((product) => {
+        const name = product.name.trim();
+
+        // 수량 정보 패턴 확인 - 다양한 형태의 수량 정보
+        const quantityPatterns = [
+          /\(\d+[입개봉팩개]?\/\d+[입개봉팩개박스]?\/?\d*[입개봉팩개박스]?\)$/, // (1/10/250), (50입/봉,10봉/1박스)
+          /\(\d+[입개봉팩개박스]+\)$/, // (100입), (날개 1개)
+          /\([날개]+\s*\d*[개]*\)$/, // (날개 1개)
+          /\(\d+[입개봉팩개]?\/[봉박스][,]\d+[봉박스]?\/\d+[박스]+\)$/, // 복잡한 패턴
+        ];
+
+        const hasQuantityInfo = quantityPatterns.some((pattern) =>
+          pattern.test(name)
+        );
+
+        if (hasQuantityInfo) {
+          // 수량 정보를 제거한 기본 상품명 추출
+          let baseName = name;
+          for (const pattern of quantityPatterns) {
+            baseName = baseName.replace(pattern, '').trim();
+          }
+
+          // 기본 상품명이 이미 존재하는지 확인
+          if (seenProducts.has(baseName)) {
+            // 이미 기본 상품이 있으면 수량 정보 버전은 제외
+            console.log(
+              `수량 정보 포함 중복 상품 제외: ${name} (기본: ${baseName})`
+            );
+            return;
+          }
+
+          // 기본 상품이 없으면 현재 상품을 기본 상품명으로 등록
+          seenProducts.set(baseName, product);
+          uniqueProducts.push(product);
+        } else {
+          // 수량 정보가 없는 경우
+          // 동일한 기본 상품명이 이미 있는지 확인
+          if (seenProducts.has(name)) {
+            // 완전히 같은 이름이면 스킵
+            return;
+          }
+
+          // 새 상품으로 추가
+          seenProducts.set(name, product);
+          uniqueProducts.push(product);
+        }
+      });
+
+      // 줄임표가 있는 상품들 처리 (기존 로직 유지)
+      const finalProducts: BalloonProduct[] = [];
+      const finalSeen = new Set<string>();
 
       // 줄임표시가 없는 완전한 상품명을 우선적으로 처리
-      const fullNames = productList.filter(
+      const fullNames = uniqueProducts.filter(
         (p) => !p.name.includes('...') && !p.name.includes('…')
       );
-      const truncatedNames = productList.filter(
+      const truncatedNames = uniqueProducts.filter(
         (p) => p.name.includes('...') || p.name.includes('…')
       );
 
       // 완전한 이름들을 먼저 추가
       fullNames.forEach((product) => {
         const normalizedName = product.name.trim().toLowerCase();
-        if (!seenProducts.has(normalizedName)) {
-          seenProducts.add(normalizedName);
-          uniqueProducts.push(product);
+        if (!finalSeen.has(normalizedName)) {
+          finalSeen.add(normalizedName);
+          finalProducts.push(product);
         }
       });
 
@@ -636,7 +689,7 @@ export async function scrapeSinglePage(
         let shouldAdd = true;
 
         // 이미 추가된 완전한 이름들과 비교
-        for (const existingName of seenProducts) {
+        for (const existingName of finalSeen) {
           if (
             existingName.startsWith(baseName) ||
             baseName.startsWith(existingName)
@@ -646,13 +699,13 @@ export async function scrapeSinglePage(
           }
         }
 
-        if (shouldAdd && !seenProducts.has(baseName)) {
-          seenProducts.add(baseName);
-          uniqueProducts.push(product);
+        if (shouldAdd && !finalSeen.has(baseName)) {
+          finalSeen.add(baseName);
+          finalProducts.push(product);
         }
       });
 
-      return uniqueProducts;
+      return finalProducts;
     },
     categoryName,
     categoryCode,
@@ -667,9 +720,7 @@ export async function scrapeSinglePage(
 }
 
 // 새로이벤트 로그인 함수
-async function loginToSaeroEvent(
-  page: puppeteer.Page
-): Promise<boolean> {
+async function loginToSaeroEvent(page: Page): Promise<boolean> {
   try {
     const username = process.env.SAEROEVENT_USERNAME;
     const password = process.env.SAEROEVENT_PASSWORD;
@@ -695,27 +746,30 @@ async function loginToSaeroEvent(
       // 정확한 셀렉터로 직접 대기
       await page.waitForSelector('input[name="id"]', { timeout: 10000 });
       await page.waitForSelector('input[name="pw"]', { timeout: 5000 });
-      
+
       console.log('로그인 입력 필드 확인됨');
-      
+
       // 입력 필드 클리어 후 입력
       await page.click('input[name="id"]');
       await page.evaluate(() => {
-        const idInput = document.querySelector('input[name="id"]') as HTMLInputElement;
+        const idInput = document.querySelector(
+          'input[name="id"]'
+        ) as HTMLInputElement;
         if (idInput) idInput.value = '';
       });
       await page.type('input[name="id"]', username);
-      
+
       await page.click('input[name="pw"]');
       await page.evaluate(() => {
-        const pwInput = document.querySelector('input[name="pw"]') as HTMLInputElement;
+        const pwInput = document.querySelector(
+          'input[name="pw"]'
+        ) as HTMLInputElement;
         if (pwInput) pwInput.value = '';
       });
       await page.type('input[name="pw"]', password);
-      
     } catch (error) {
       console.error('로그인 입력 필드를 찾을 수 없습니다.', error);
-      
+
       // 디버그: 페이지 상태 확인
       const debugInfo = await page.evaluate(() => {
         return {
@@ -724,7 +778,7 @@ async function loginToSaeroEvent(
           readyState: document.readyState,
           inputCount: document.querySelectorAll('input').length,
           formCount: document.querySelectorAll('form').length,
-          bodyText: document.body.textContent?.substring(0, 200) || ''
+          bodyText: document.body.textContent?.substring(0, 200) || '',
         };
       });
       console.log('디버그 정보:', debugInfo);
@@ -740,8 +794,9 @@ async function loginToSaeroEvent(
       // 대체 방법: JavaScript 함수 직접 호출
       console.log('로그인 함수 직접 호출');
       await page.evaluate(() => {
-        if (typeof (window as any).login === 'function') {
-          (window as any).login();
+        const windowWithLogin = window as Window & { login?: () => void };
+        if (typeof windowWithLogin.login === 'function') {
+          windowWithLogin.login();
         } else {
           // 폼 직접 제출
           const form = document.querySelector('form') as HTMLFormElement;
