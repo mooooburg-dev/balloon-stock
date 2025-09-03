@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const filename = `${siteNameEn}_products${categoryInfo}_${timestamp}.xlsx`;
 
     // Return the Excel file as a response
-    return new NextResponse(excelBuffer, {
+    return new NextResponse(new Uint8Array(excelBuffer), {
       headers: {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

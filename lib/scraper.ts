@@ -2,8 +2,10 @@ import puppeteer, { Page } from 'puppeteer';
 import * as XLSX from 'xlsx';
 import { config } from 'dotenv';
 
-// 환경 변수 로드
-config({ path: '.env.local' });
+// 환경 변수 로드 (개발 환경에서만)
+if (process.env.NODE_ENV === 'development') {
+  config({ path: '.env.local' });
+}
 
 export interface BalloonProduct {
   name: string;
@@ -843,6 +845,9 @@ export async function scrapeByCategory(
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-blink-features=AutomationControlled',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--single-process', // Vercel 서버리스 환경용
     ],
   });
 
